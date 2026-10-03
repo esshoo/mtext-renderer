@@ -7,3 +7,8 @@ export type {
   HarfBuzzGlyphInfoAndPosition,
   HarfBuzzRuntime
 } from './types'
+
+export {
+  createHarfBuzzArabicTextShaperFromFontProgramSource
+} from './fontProgramSource'
+export type { HarfBuzzFontProgramSource } from './fontProgramSource'
