@@ -45,3 +45,7 @@ Thumbs.db
 # Local font downloads + previous bench metrics for `pnpm bench`
 packages/mtext-renderer/.font-cache
 packages/mtext-renderer/.bench-results
+
+# Local Arabic shaping POC build/runtime cache
+packages/example/dist-arabic-poc/
+packages/example/public/vendor/harfbuzzjs/

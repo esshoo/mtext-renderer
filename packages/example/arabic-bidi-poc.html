@@ -1,0 +1,134 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Arabic BiDi + HarfBuzz + Three.js POC</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; font-family: Arial, sans-serif; }
+    body { background: #111; color: #eee; }
+    #app { display: grid; grid-template-columns: 410px 1fr; width: 100%; height: 100%; }
+    #panel { padding: 18px; overflow: auto; border-right: 1px solid #333; background: #1a1a1a; }
+    #view { min-width: 0; min-height: 0; position: relative; }
+    h1 { margin: 0 0 6px; font-size: 20px; }
+    .sub { margin: 0 0 18px; color: #aaa; font-size: 12px; line-height: 1.5; }
+    label { display: block; margin: 14px 0 6px; color: #bbb; font-size: 12px; }
+    textarea, input[type=file], select, button { width: 100%; font: inherit; }
+    textarea, select {
+      padding: 9px 10px;
+      border: 1px solid #444;
+      border-radius: 5px;
+      color: #fff;
+      background: #0f0f0f;
+    }
+    textarea {
+      min-height: 135px;
+      resize: vertical;
+      font-size: 20px;
+      direction: auto;
+    }
+    input[type=file] { color: #ccc; }
+    button {
+      margin-top: 10px;
+      padding: 9px 10px;
+      border: 1px solid #555;
+      border-radius: 5px;
+      color: #fff;
+      background: #333;
+      cursor: pointer;
+    }
+    button:hover { background: #444; }
+    button.primary { background: #245c3d; border-color: #357b55; }
+    button.primary:hover { background: #2d704b; }
+    .examples { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 7px; }
+    .examples button { margin: 0; font-size: 12px; }
+    #status {
+      margin-top: 14px;
+      padding: 9px;
+      border-radius: 5px;
+      background: #242424;
+      color: #9dd6ae;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    #diag {
+      margin: 12px 0 0;
+      padding: 10px;
+      max-height: 320px;
+      overflow: auto;
+      border: 1px solid #333;
+      border-radius: 5px;
+      background: #0d0d0d;
+      color: #b9d6ff;
+      font-size: 11px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .note { margin-top: 10px; color: #888; font-size: 11px; line-height: 1.5; }
+    #overlay {
+      position: absolute;
+      left: 12px;
+      bottom: 10px;
+      padding: 6px 9px;
+      border-radius: 4px;
+      background: rgba(0,0,0,.6);
+      color: #aaa;
+      font-size: 11px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <aside id="panel">
+      <h1>Arabic Shaping POC 02 — BiDi</h1>
+      <p class="sub">
+        Auto picks one base direction for the whole text box. Unicode BiDi resolves mixed Arabic/Latin/number runs. HarfBuzz then
+        shapes each directional run independently. RTL paragraphs are anchored
+        to the right edge.
+      </p>
+
+      <label for="font">Arabic TTF / OTF font</label>
+      <input id="font" type="file" accept=".ttf,.otf,font/ttf,font/otf,application/font-sfnt" />
+
+      <label for="direction">Paragraph base direction</label>
+      <select id="direction">
+        <option value="auto" selected>Auto (whole text box)</option>
+        <option value="rtl">RTL</option>
+        <option value="ltr">LTR</option>
+      </select>
+
+      <label for="text">Unicode source text</label>
+      <textarea id="text" dir="auto">مُحَمَّد
+غرفة A-102 – الدور الثاني 25.50 m²
+Room A-102 — الغرفة رقم 25</textarea>
+
+      <div class="examples">
+        <button type="button" data-text="غرفة A-102 – الدور الثاني 25.50 m²">Arabic + Latin</button>
+        <button type="button" data-text="Room A-102 — الغرفة رقم 25">Latin + Arabic</button>
+        <button type="button" data-text="(غرفة رقم 12) A-102">Parentheses</button>
+        <button type="button" data-text="السعر 123.45 SAR">Numbers</button>
+      </div>
+
+      <button id="render" class="primary" type="button">BiDi + Shape + Render</button>
+
+      <div id="status">Choose an Arabic-capable TTF/OTF font first.</div>
+      <pre id="diag"></pre>
+
+      <p class="note">
+        The vertical guide in the viewport is x=0. Auto/RTL Arabic paragraphs
+        should end at that right edge. LTR paragraphs start from it.
+      </p>
+    </aside>
+
+    <main id="view">
+      <div id="overlay">Vertical line = paragraph anchor x=0 · Mouse pan · Wheel zoom</div>
+    </main>
+  </div>
+
+  <script type="module" src="./src/arabicBidiPoc.ts"></script>
+</body>
+</html>
+

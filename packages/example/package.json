@@ -29,6 +29,8 @@
   "dependencies": {
     "@mlightcad/mtext-parser": "^1.5.3",
     "@mlightcad/mtext-renderer": "workspace:*",
+    "bidi-js": "1.1.0",
+    "harfbuzzjs": "1.6.2",
     "three": "^0.172.0"
   },
   "devDependencies": {
