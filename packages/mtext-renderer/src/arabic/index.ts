@@ -18,3 +18,6 @@ export {
   createHarfBuzzArabicTextShaperFromFontProgramSource
 } from './harfbuzz'
 export type { HarfBuzzFontProgramSource } from './harfbuzz'
+
+export { createArabicShapedMeshGlyphGeometry } from './layout'
+export type { ArabicShapedMeshGlyphGeometry } from './layout'
