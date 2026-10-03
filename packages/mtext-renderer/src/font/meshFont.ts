@@ -22,6 +22,24 @@ export interface GlyphCommand {
   y2?: number
 }
 
+/**
+ * Renderer-neutral outline data for one OpenType glyph addressed by glyph ID.
+ *
+ * Complex-script shapers such as HarfBuzz return glyph IDs rather than Unicode
+ * characters. Keeping this bridge on MeshFont avoids exposing opentype.js
+ * internals to higher-level renderer code while leaving the existing
+ * character-based APIs untouched.
+ */
+export interface MeshGlyphOutline {
+  glyphId: number
+  advanceWidth: number
+  xMin: number
+  xMax: number
+  yMin: number
+  yMax: number
+  commands: GlyphCommand[]
+}
+
 interface MeshGlyph {
   ha: number
   x_min: number
@@ -252,6 +270,56 @@ export class MeshFont extends BaseFont {
 
       this.data.glyphs[char] = token
       this.glyphCache.set(char, token)
+    }
+  }
+
+  /**
+   * Gets OpenType outline data for a glyph addressed directly by glyph ID.
+   *
+   * This does not alter or populate the character glyph cache used by the
+   * existing renderer. It is a generic bridge for shaping engines that already
+   * resolved Unicode text into font-specific glyph IDs.
+   *
+   * Glyph ID 0 (.notdef), negative IDs and non-integer values are rejected.
+   *
+   * @param glyphId - OpenType glyph index returned by a shaping engine
+   * @returns Renderer-neutral glyph outline data, or undefined when invalid
+   */
+  public getGlyphOutlineById(
+    glyphId: number
+  ): MeshGlyphOutline | undefined {
+    if (
+      !this.opentypeFont ||
+      !Number.isInteger(glyphId) ||
+      glyphId <= 0
+    ) {
+      return undefined
+    }
+
+    const glyph = this.opentypeFont.glyphs.get(glyphId)
+    if (!glyph || !glyph.path) {
+      return undefined
+    }
+
+    return {
+      glyphId,
+      advanceWidth: glyph.advanceWidth ?? 0,
+      xMin: glyph.xMin ?? 0,
+      xMax: glyph.xMax ?? 0,
+      yMin: glyph.yMin ?? 0,
+      yMax: glyph.yMax ?? 0,
+      commands: glyph.path.commands.map(command => {
+        const sourceCommand = command as GlyphCommand
+        return {
+          type: sourceCommand.type,
+          x: sourceCommand.x,
+          y: sourceCommand.y,
+          x1: sourceCommand.x1,
+          y1: sourceCommand.y1,
+          x2: sourceCommand.x2,
+          y2: sourceCommand.y2
+        }
+      })
     }
   }
 
