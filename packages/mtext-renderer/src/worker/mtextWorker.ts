@@ -1,6 +1,11 @@
 import { MTextColor } from '@mlightcad/mtext-parser'
 import * as THREE from 'three'
 
+import type {
+  ArabicMTextShapingOptions,
+  ArabicWorkerShapingOptions
+} from '../arabic'
+import { createArabicWorkerShapingOptions } from '../arabic/worker'
 import { FontManager } from '../font'
 import { collectIsolateMemoryStats } from '../memory/collectIsolateMemoryStats'
 import type { IsolateMemoryStats } from '../memory/types'
@@ -23,6 +28,7 @@ interface WorkerMessage {
     | 'setDefaultFonts'
     | 'setLazyFontLoading'
     | 'setAwaitFontsBeforeDraw'
+    | 'setArabicShaping'
     | 'setFontUrl'
     | 'setMissedFonts'
     | 'getAvailableFonts'
@@ -37,6 +43,7 @@ interface WorkerMessage {
     missedFonts?: Record<string, number>
     url?: string
     enabled?: boolean
+    arabicShaping?: ArabicWorkerShapingOptions | null
   }
 }
 
@@ -47,6 +54,7 @@ interface WorkerResponse {
     | 'setDefaultFonts'
     | 'setLazyFontLoading'
     | 'setAwaitFontsBeforeDraw'
+    | 'setArabicShaping'
     | 'setFontUrl'
     | 'setMissedFonts'
     | 'getAvailableFonts'
@@ -63,6 +71,7 @@ interface WorkerResponse {
 // Initialize managers in the worker
 const fontManager = FontManager.instance
 const styleManager = new DefaultStyleManager()
+let arabicShaping: ArabicMTextShapingOptions | undefined
 
 // Forward worker-local font loads so the main thread can redraw after lazy loads.
 fontManager.events.fontLoaded.addEventListener(payload => {
@@ -107,6 +116,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
           fontManager,
           normalizedColorSettings
         )
+        mtext.setArabicShaping(arabicShaping)
         await mtext.asyncDraw()
         mtext.updateMatrixWorld(true)
 
@@ -128,6 +138,40 @@ self.addEventListener('message', async (event: MessageEvent<WorkerMessage>) => {
         mtext.dispose()
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ;(mtext as any) = undefined
+        break
+      }
+
+      case 'setArabicShaping': {
+        const options = (data?.arabicShaping ?? null) as
+          | ArabicWorkerShapingOptions
+          | null
+
+        if (!options) {
+          arabicShaping = undefined
+          self.postMessage({
+            type: 'setArabicShaping',
+            id,
+            success: true,
+            data: { enabled: false }
+          } as WorkerResponse)
+          break
+        }
+
+        const configured = await createArabicWorkerShapingOptions(
+          fontManager,
+          options
+        )
+        arabicShaping = configured
+
+        self.postMessage({
+          type: 'setArabicShaping',
+          id,
+          success: true,
+          data: {
+            enabled: configured !== undefined,
+            fontName: configured?.fontName ?? options.fontName
+          }
+        } as WorkerResponse)
         break
       }
 

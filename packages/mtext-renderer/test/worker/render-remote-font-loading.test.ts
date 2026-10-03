@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ArabicWorkerShapingOptions } from '../../src'
 import { FontManager } from '../../src/font/fontManager'
 import { DefaultStyleManager } from '../../src/renderer/defaultStyleManager'
 import { MText } from '../../src/renderer/mtext'
@@ -57,6 +58,25 @@ class MockWorker {
             type,
             success: true,
             data: { enabled: (data as { enabled: boolean }).enabled }
+          }
+        } as MessageEvent)
+        return
+      }
+      if (type === 'setArabicShaping') {
+        const options = (
+          data as {
+            arabicShaping?: ArabicWorkerShapingOptions | null
+          }
+        ).arabicShaping
+        this.onmessage?.({
+          data: {
+            id,
+            type,
+            success: true,
+            data: {
+              enabled: !!options,
+              fontName: options?.fontName
+            }
           }
         } as MessageEvent)
         return
@@ -686,6 +706,56 @@ describe('render remote font loading', () => {
     renderer.destroy()
   })
 
+  it('WebWorkerRenderer setArabicShaping targets one explicit worker', async () => {
+    const renderer = new WebWorkerRenderer({ poolSize: 2, timeOut: 5000 })
+
+    for (const worker of workerInstances) {
+      worker.postMessage.mockClear()
+    }
+
+    const options: ArabicWorkerShapingOptions = {
+      fontName: 'noto-naskh-arabic',
+      runtimeModuleUrl: 'https://cdn.example.com/harfbuzz/index.mjs',
+      direction: 'rtl',
+      language: 'ar'
+    }
+
+    const enabled = await renderer.setArabicShaping(options, 1)
+
+    expect(enabled).toEqual({
+      enabled: true,
+      fontName: 'noto-naskh-arabic',
+      workerIndex: 1
+    })
+
+    expect(workerInstances[0].postMessage).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'setArabicShaping'
+      })
+    )
+    expect(workerInstances[1].postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'setArabicShaping',
+        data: { arabicShaping: options }
+      })
+    )
+
+    const disabled = await renderer.setArabicShaping(undefined, 1)
+
+    expect(disabled).toEqual({
+      enabled: false,
+      fontName: undefined,
+      workerIndex: 1
+    })
+    expect(workerInstances[1].postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'setArabicShaping',
+        data: { arabicShaping: null }
+      })
+    )
+
+    renderer.destroy()
+  })
   it('WebWorkerRenderer setLazyFontLoading mirrors flag to all workers', async () => {
     const renderer = new WebWorkerRenderer({ poolSize: 2, timeOut: 5000 })
 

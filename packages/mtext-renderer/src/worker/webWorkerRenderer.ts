@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 
+import type { ArabicWorkerShapingOptions } from '../arabic'
 import { FontManager } from '../font'
 import type { IsolateMemoryStats } from '../memory/types'
 import { buildCharBoxesFromObject } from '../renderer/charBoxUtils'
@@ -111,6 +112,13 @@ type SetAwaitFontsBeforeDrawMessage = WorkerMessageBase<
   }
 >
 
+type SetArabicShapingMessage = WorkerMessageBase<
+  'setArabicShaping',
+  {
+    arabicShaping: ArabicWorkerShapingOptions | null
+  }
+>
+
 type SetMissedFontsMessage = WorkerMessageBase<
   'setMissedFonts',
   {
@@ -124,6 +132,7 @@ type WorkerMessageTyped =
   | SetDefaultFontsMessage
   | SetLazyFontLoadingMessage
   | SetAwaitFontsBeforeDrawMessage
+  | SetArabicShapingMessage
   | SetMissedFontsMessage
   | SetFontUrlMessage
   | GetAvailableFontsMessage
@@ -177,6 +186,14 @@ type SetAwaitFontsBeforeDrawResponse = WorkerResponseBase<
   }
 >
 
+type SetArabicShapingResponse = WorkerResponseBase<
+  'setArabicShaping',
+  {
+    enabled: boolean
+    fontName?: string
+  }
+>
+
 type SetMissedFontsResponse = WorkerResponseBase<
   'setMissedFonts',
   {
@@ -207,6 +224,7 @@ type WorkerResponseTyped =
   | SetDefaultFontsResponse
   | SetLazyFontLoadingResponse
   | SetAwaitFontsBeforeDrawResponse
+  | SetArabicShapingResponse
   | SetFontUrlResponse
   | SetMissedFontsResponse
   | GetAvailableFontsResponse
@@ -559,6 +577,48 @@ export class WebWorkerRenderer implements MTextBaseRenderer {
     ).then(() => undefined)
 
     return this.readyPromise
+  }
+
+  /**
+   * Configures Arabic shaping in one explicit worker isolate.
+   *
+   * Phase 1H-B1 intentionally does not route Arabic render jobs yet. The
+   * caller supplies the target worker index so HarfBuzz is not initialized in
+   * every worker in the pool.
+   */
+  async setArabicShaping(
+    options?: ArabicWorkerShapingOptions,
+    workerIndex: number = 0
+  ): Promise<{
+    enabled: boolean
+    fontName?: string
+    workerIndex: number
+  }> {
+    await this.ensureTasksFinished()
+
+    if (
+      !Number.isInteger(workerIndex) ||
+      workerIndex < 0 ||
+      workerIndex >= this.workers.length
+    ) {
+      throw new RangeError(`Invalid worker index: ${workerIndex}`)
+    }
+
+    const result = await this.sendMessageToOneWorker<
+      SetArabicShapingMessage,
+      SetArabicShapingResponse
+    >(
+      {
+        type: 'setArabicShaping',
+        data: { arabicShaping: options ?? null }
+      },
+      workerIndex
+    )
+
+    return {
+      ...result,
+      workerIndex
+    }
   }
 
   /**
