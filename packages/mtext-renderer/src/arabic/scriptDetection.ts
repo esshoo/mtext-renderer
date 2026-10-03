@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Arabic-script detection helpers.
  *
  * These helpers only decide whether a logical Unicode run is a candidate for
@@ -14,6 +14,7 @@
  * a fragile hard-coded range table.
  */
 const ARABIC_SCRIPT_RE = /\p{Script=Arabic}/u
+const LETTER_RE = /\p{Letter}/u
 
 /**
  * Returns true when the logical source contains at least one Arabic-script
@@ -35,4 +36,27 @@ export function shouldUseArabicShaping(
   fontType: 'mesh' | 'shx' | undefined
 ): boolean {
   return fontType === 'mesh' && containsArabicScript(text)
+}
+
+/**
+ * True when text contains Arabic script and no foreign letters.
+ * Digits, punctuation and combining marks are allowed.
+ *
+ * Mixed Arabic/Latin is deliberately deferred to paragraph-level BiDi.
+ */
+export function isArabicShapingCandidate(text: string): boolean {
+  let hasArabic = false
+
+  for (const char of text) {
+    if (ARABIC_SCRIPT_RE.test(char)) {
+      hasArabic = true
+      continue
+    }
+
+    if (LETTER_RE.test(char)) {
+      return false
+    }
+  }
+
+  return hasArabic
 }

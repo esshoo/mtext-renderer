@@ -8,6 +8,11 @@ import {
 } from '@mlightcad/mtext-parser'
 import * as THREE from 'three'
 
+import {
+  type ArabicMTextShapingOptions,
+  prepareArabicWord,
+  renderPreparedArabicWord
+} from '../arabic'
 import { getColorByIndex } from '../common'
 import { FontManager } from '../font'
 import { BaseTextShape } from '../font/baseTextShape'
@@ -300,6 +305,10 @@ export class MTextProcessor {
   private _lineBatchEntries: TransformedLineGeometryEntry[] = []
   /** Mesh glyph entries collected for a single-pass triangle merge within a style segment. */
   private _meshBatchEntries: TransformedLineGeometryEntry[] = []
+  /** Optional Arabic shaping configuration. Disabled by default. */
+  private _arabicShaping?: ArabicMTextShapingOptions
+  /** Temporary canonical Arabic geometries owned by the pending mesh batch. */
+  private _ownedArabicGeometries = new Set<THREE.BufferGeometry>()
   /** Current paragraph first-line indent in drawing units. */
   private _currentIndent: number = 0
   /** Current paragraph left margin in drawing units. */
@@ -383,6 +392,13 @@ export class MTextProcessor {
     this.initLineParams()
   }
 
+  /**
+   * Enables or disables the optional Arabic shaping path for this processor.
+   * Existing callers never invoke this method, so legacy rendering stays unchanged.
+   */
+  setArabicShaping(options?: ArabicMTextShapingOptions): void {
+    this._arabicShaping = options
+  }
   /**
    * Font manager used to resolve glyphs, shapes, and font metrics.
    */
@@ -1502,6 +1518,132 @@ export class MTextProcessor {
   }
 
   /**
+   * Attempts the isolated Arabic word path.
+   *
+   * The Arabic module owns shaping, glyph geometry preparation and cluster
+   * mapping. This method only bridges those results into MTextProcessor state.
+   */
+  private processArabicWord(
+    word: string,
+    lineGeometries: THREE.BufferGeometry[],
+    meshCharBoxes: CharBox[],
+    lineCharBoxes: CharBox[]
+  ): boolean {
+    const prepared = prepareArabicWord({
+      text: word,
+      config: this._arabicShaping,
+      fontManager: this.fontManager,
+      activeFontName: this.currentFont,
+      wordSpace: this.currentWordSpace,
+      distributed:
+        this.currentHorizontalAlignment === MTextParagraphAlignment.DISTRIBUTED,
+      slanted:
+        this._currentContext.oblique !== 0 || this._currentContext.italic,
+      fontSize: this.currentFontSize,
+      widthFactor: this.currentWidthFactor
+    })
+    if (!prepared) {
+      return false
+    }
+
+    const maxWidth = this.maxLineWidth || Infinity
+    if (
+      Number.isFinite(maxWidth) &&
+      this.hOffset > 0 &&
+      this.hOffset + prepared.runAdvance > maxWidth
+    ) {
+      // Keep the connected word intact. Splitting requires reshaping each
+      // resulting line fragment and is deferred to the full Arabic layout pass.
+      this.recordVisualLineBreak(meshCharBoxes, lineCharBoxes)
+      this.advanceToNextLine(false)
+    }
+
+    if (!this._lineHasRenderableChar) {
+      this.applyPendingEmptyLineYAdjust()
+    }
+
+    const runStartX = this.hOffset
+    const baselineY =
+      this.flowDirection == MTextFlowDirection.BOTTOM_TO_TOP
+        ? this.vOffset
+        : this.vOffset - this.currentLayoutFontSize
+
+    const rendered = renderPreparedArabicWord({
+      prepared,
+      runStartX,
+      baselineY,
+      layoutFontSize: this.currentLayoutFontSize,
+      collectCharBoxes: this._options.collectCharBoxes !== false,
+      buildMatrix: (x, y, geometryScale) =>
+        this.buildCharTransformMatrix(
+          x,
+          y,
+          this.currentLayoutFontSize,
+          geometryScale
+        ).matrix
+    })
+
+    this._meshBatchEntries.push(...rendered.meshEntries)
+    rendered.ownedGeometries.forEach(geometry =>
+      this._ownedArabicGeometries.add(geometry)
+    )
+
+    if (this._options.collectCharBoxes !== false) {
+      meshCharBoxes.push(
+        ...rendered.charBoxes.map(({ char, box }) => ({
+          type: CharBoxType.CHAR,
+          box,
+          char,
+          children: []
+        }))
+      )
+      this._lastCharBoxTarget = 'mesh'
+    }
+
+    this._maxFontSize = Math.max(this._maxFontSize, this.currentFontSize)
+    this._maxLayoutFontSize = Math.max(
+      this._maxLayoutFontSize,
+      this.currentLayoutFontSize
+    )
+    this._hOffset = runStartX + prepared.runAdvance
+    this._lineHasRenderableChar = true
+
+    const lineOffset = this.currentLayoutFontSize * 0.05
+    const lineZ = 0.001
+    const pushDecoration = (y: number) =>
+      this.pushDecorationLine(lineGeometries, [
+        runStartX,
+        y,
+        lineZ,
+        runStartX + prepared.runAdvance,
+        y,
+        lineZ
+      ])
+
+    if (this._currentContext.underline) {
+      pushDecoration(baselineY - lineOffset)
+    }
+    if (this._currentContext.overline) {
+      pushDecoration(
+        baselineY + this.currentLayoutFontSize + lineOffset
+      )
+    }
+    if (this._currentContext.strikeThrough) {
+      pushDecoration(
+        baselineY +
+          this.currentLayoutFontSize / 2 -
+          this.currentLayoutFontSize * 0.2
+      )
+    }
+
+    return true
+  }
+  /** Disposes Arabic-only canonical geometry after batch merge copies it. */
+  private disposeOwnedArabicGeometries(): void {
+    for (const geometry of this._ownedArabicGeometries) geometry.dispose()
+    this._ownedArabicGeometries.clear()
+  }
+  /**
    * Lays out and renders one parser word token, breaking to a new visual line when needed.
    *
    * - CJK / non-Latin: no whole-word wrap — {@link processChar} breaks between
@@ -1523,6 +1665,12 @@ export class MTextProcessor {
     meshCharBoxes: CharBox[],
     lineCharBoxes: CharBox[]
   ) {
+    if (
+      this.processArabicWord(word, lineGeometries, meshCharBoxes, lineCharBoxes)
+    ) {
+      return
+    }
+
     const resolvedChars: Array<{ char: string; shape?: BaseTextShape }> = []
     let wordWidth = 0
     const isLatinRun = this.isLatinAsciiRun(word)
@@ -2709,6 +2857,7 @@ export class MTextProcessor {
       const mergedMeshGeom = TextGeometryBuilder.mergeMeshGeometries(
         this._meshBatchEntries
       )
+      this.disposeOwnedArabicGeometries()
       markMeshGlyphGeometry(mergedMeshGeom)
       const mesh = new THREE.Mesh(mergedMeshGeom, meshMaterial)
       mesh.userData.bboxIntersectionCheck = true

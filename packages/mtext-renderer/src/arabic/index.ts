@@ -1,9 +1,11 @@
 export {
   containsArabicScript,
+  isArabicShapingCandidate,
   shouldUseArabicShaping
 } from './scriptDetection'
 
 export type {
+  ArabicMTextShapingOptions,
   ArabicShapeRequest,
   ArabicShapedGlyph,
   ArabicShapedRun,
@@ -21,3 +23,8 @@ export type { HarfBuzzFontProgramSource } from './harfbuzz'
 
 export { createArabicShapedMeshGlyphGeometry } from './layout'
 export type { ArabicShapedMeshGlyphGeometry } from './layout'
+
+export {
+  prepareArabicWord,
+  renderPreparedArabicWord
+} from './integration'

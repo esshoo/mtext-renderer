@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Base paragraph/text-box direction used by optional complex-script support.
  *
  * This is intentionally independent from DXF MText group-code values.
@@ -59,4 +59,16 @@ export interface ArabicShapeRequest {
 export interface ArabicTextShaper {
   isReady(): boolean
   shape(request: ArabicShapeRequest): ArabicShapedRun | undefined
+}
+
+/**
+ * Opt-in Arabic shaping configuration for MTextProcessor.
+ *
+ * The shaper must be built from the same loaded mesh font named by `fontName`.
+ */
+export interface ArabicMTextShapingOptions {
+  fontName: string
+  shaper: ArabicTextShaper
+  direction?: Exclude<ArabicTextDirection, 'auto'>
+  language?: string
 }
