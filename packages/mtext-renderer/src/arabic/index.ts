@@ -10,7 +10,8 @@ export type {
   ArabicShapedGlyph,
   ArabicShapedRun,
   ArabicTextDirection,
-  ArabicTextShaper
+  ArabicTextShaper,
+  ArabicWorkerShapingOptions
 } from './types'
 
 export { HarfBuzzArabicTextShaper } from './harfbuzz'

@@ -72,3 +72,21 @@ export interface ArabicMTextShapingOptions {
   direction?: Exclude<ArabicTextDirection, 'auto'>
   language?: string
 }
+
+/**
+ * Serializable Arabic-shaping configuration for Web Worker isolates.
+ *
+ * `runtimeModuleUrl` must point to a trusted ESM module whose namespace matches
+ * {@link HarfBuzzRuntime}. The worker imports that module locally; no HarfBuzz
+ * runtime object is sent through `postMessage`.
+ *
+ * For harfbuzzjs, serve its `dist/index.mjs` together with the sibling WASM
+ * asset(s) it references. Relative URLs are resolved by the worker environment,
+ * so applications should normally pass an absolute URL.
+ */
+export interface ArabicWorkerShapingOptions {
+  fontName: string
+  runtimeModuleUrl: string
+  direction?: Exclude<ArabicTextDirection, 'auto'>
+  language?: string
+}

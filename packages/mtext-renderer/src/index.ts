@@ -9,6 +9,7 @@ export type {
   ArabicShapedRun,
   ArabicTextDirection,
   ArabicTextShaper,
+  ArabicWorkerShapingOptions,
   HarfBuzzFontProgramSource,
   HarfBuzzRuntime
 } from './arabic'
