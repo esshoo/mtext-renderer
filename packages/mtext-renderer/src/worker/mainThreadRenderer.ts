@@ -1,3 +1,4 @@
+import type { ArabicMTextShapingOptions } from '../arabic'
 import { FontManager } from '../font'
 import {
   collectIsolateMemoryStats,
@@ -24,6 +25,7 @@ export class MainThreadRenderer implements MTextBaseRenderer {
   private fontManager: FontManager
   private defaultStyleManager: StyleManager
   private isInitialized: boolean
+  private arabicShaping?: ArabicMTextShapingOptions
 
   constructor() {
     this.fontManager = FontManager.instance
@@ -31,6 +33,16 @@ export class MainThreadRenderer implements MTextBaseRenderer {
     this.isInitialized = false
   }
 
+  /**
+   * Enables or disables Arabic shaping for subsequent main-thread MText renders.
+   *
+   * Worker transport/runtime initialization is intentionally handled in a
+   * separate phase.
+   */
+  setArabicShaping(options?: ArabicMTextShapingOptions): this {
+    this.arabicShaping = options
+    return this
+  }
   /**
    * Used to manage materials used by texts
    */
@@ -76,6 +88,7 @@ export class MainThreadRenderer implements MTextBaseRenderer {
       this.fontManager,
       colorSettings
     )
+    mtext.setArabicShaping(this.arabicShaping)
     await mtext.asyncDraw()
     mtext.updateMatrixWorld(true)
     return mtext as MTextObject
@@ -97,6 +110,7 @@ export class MainThreadRenderer implements MTextBaseRenderer {
       this.fontManager,
       colorSettings
     )
+    mtext.setArabicShaping(this.arabicShaping)
     mtext.syncDraw()
     mtext.updateMatrixWorld(true)
     return mtext as MTextObject

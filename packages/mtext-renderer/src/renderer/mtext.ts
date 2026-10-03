@@ -8,6 +8,7 @@ import {
 import { ShxFontType } from '@mlightcad/shx-parser'
 import * as THREE from 'three'
 
+import type { ArabicMTextShapingOptions } from '../arabic'
 import { FontManager } from '../font'
 import { buildCharBoxesFromObject } from './charBoxUtils'
 import { DEFAULT_LINE_SPACE_FACTOR, DEFAULT_LINE_SPACE_STYLE } from './constants'
@@ -128,6 +129,8 @@ export class MText extends THREE.Object3D {
   private _box: THREE.Box3
   /** Lazily built layout data (line geometry + char boxes). */
   private _layoutData: MTextLayout | undefined
+  /** Optional Arabic shaping config; disabled unless explicitly set. */
+  private _arabicShaping?: ArabicMTextShapingOptions
 
   /** Raw mtext data to draw on demand */
   private _mtextData: MTextData
@@ -199,6 +202,16 @@ export class MText extends THREE.Object3D {
     this._fontsInStyleLoaded = false
   }
 
+  /**
+   * Enables or disables Arabic shaping for this MText instance.
+   *
+   * The caller owns the shaper lifetime. Passing `undefined` restores the
+   * original renderer path.
+   */
+  setArabicShaping(options?: ArabicMTextShapingOptions): this {
+    this._arabicShaping = options
+    return this
+  }
   /**
    * Gets the font manager instance associated with this MText object.
    * @returns The FontManager instance
@@ -734,6 +747,7 @@ export class MText extends THREE.Object3D {
       this.fontManager,
       textLineFormatOptions
     )
+    textLine.setArabicShaping(this._arabicShaping)
     const parser = new MTextParser(
       expandUnicodeEscapes(expandPercentControlCodes(mtextData.text)),
       context,
